@@ -199,7 +199,7 @@ curl -X POST http://localhost:8000/ingest/urls \
 ### 1. Clone and create virtual environment
 
 ```bash
-cd cld-a14
+cd root_folder
 
 python3 -m venv venv
 source venv/bin/activate        # Linux / macOS
