@@ -49,19 +49,6 @@ User question
         END
 ```
 
-**Key design decisions:**
-
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| LLM provider | Anthropic / OpenAI / Groq (configurable) | Swap via `.env` without code changes |
-| Utility model | `claude-haiku-4-5-20251001` | Fast + cheap for grading, query analysis, hallucination check |
-| Generation model | Configurable (same or higher quality) | Can upgrade to Sonnet for better answers |
-| Embeddings | HuggingFace / OpenAI / Cohere / Google (configurable) | Default is local sentence-transformers (no API key); swap provider via `EMBEDDING_PROVIDER` |
-| Vector store | ChromaDB (local persistence) | Zero infrastructure, sub-ms queries, LangChain native |
-| Chunking | `RecursiveCharacterTextSplitter`, size=800, overlap=100 | Technical docs have paragraphs + code blocks — recursive splitter respects these boundaries |
-| Ingestion formats | PDF, DOCX, MD, TXT, HTML, CSV, JSON, JSONL | Format detected from file extension or HTTP Content-Type; each has a distinct extractor |
-| Retry limit | 2 retries before web fallback | Balances thoroughness vs latency |
-| State design | TypedDict with custom reducer for `chat_history` | Append-only semantics prevents message loss in multi-node writes |
 
 ---
 
@@ -154,22 +141,18 @@ These files are also a **live demo of the multi-format ingestion pipeline**: the
 
 ---
 
-## Supported Document Formats
+### Supported Document Formats
 
-The ingestion pipeline auto-detects format from the file extension (uploads / local files) or HTTP `Content-Type` header (URLs), then routes to a dedicated extractor:
+The ingestion pipeline auto-detects format using file extension or MIME type and extracts content accordingly:
 
-| Format | Extensions / MIME | Extractor behaviour |
-|--------|-------------------|---------------------|
-| **PDF** | `.pdf` / `application/pdf` | `pypdf` — one `Document` per page; `page` number in metadata |
-| **Word** | `.docx`, `.doc` / `application/vnd.openxmlformats…` | `python-docx` — paragraphs + table cells |
-| **Markdown** | `.md`, `.markdown` / `text/markdown` | Plain-text passthrough |
-| **Plain text** | `.txt`, `.rst` / `text/plain` | Plain-text passthrough |
-| **HTML** | `.html`, `.htm` / `text/html` | BeautifulSoup — prefers `<main>` / `<article>` containers |
-| **CSV** | `.csv` / `text/csv` | Each row → `key: value` line (capped at 500 rows) |
-| **JSON** | `.json` / `application/json` | Pretty-printed JSON object |
-| **JSONL** | `.jsonl`, `.ndjson` / `application/x-ndjson` | One record per line (capped at 200 records) |
-
-Unknown extensions fall back to plain-text.
+PDF (.pdf) → Extracted using pypdf, split into pages
+Word (.docx, .doc) → Extracted using python-docx (text + tables)
+Markdown (.md) → Treated as plain text
+Text (.txt, .rst) → Plain text extraction
+HTML (.html, .htm) → Parsed with BeautifulSoup (focus on main/article content)
+CSV (.csv) → Converted to key-value rows (up to 500 rows)
+JSON (.json) → Pretty-printed structured data
+JSONL (.jsonl) → One JSON record per line (up to 200 records)
 
 ### URL ingestion with format detection
 
@@ -403,7 +386,7 @@ curl http://localhost:8000/health
 
 ---
 
-## Bonus Features
+## Features
 
 ### Hallucination Check (Self-RAG inspired)
 
